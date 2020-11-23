@@ -12,11 +12,8 @@ from client import TorrentClient
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('torrent',
-                        help='the .torrent to download')
-    parser.add_argument('-v', '--verbose', action='store_true',
-                        help='enable verbose output')
-
+    parser.add_argument('torrent',help='the .torrent file')
+    parser.add_argument('-v', '--verbose', action='store_true',help='display more infomation')
     args = parser.parse_args()
     print(args)
     if args.verbose:
@@ -27,7 +24,6 @@ def main():
     task = loop.create_task(client.start())
 
     def signal_handler(*_):
-        logging.info('Exiting, please wait ...')
         client.stop()
         task.cancel()
 
@@ -36,7 +32,7 @@ def main():
     try:
         loop.run_until_complete(task)
     except CancelledError:
-        logging.warning('Event loop was canceled')
+        pass
 
 
 if __name__ == '__main__':

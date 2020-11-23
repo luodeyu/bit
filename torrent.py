@@ -1,20 +1,12 @@
-
 from hashlib import sha1
 from collections import namedtuple
 
 import bencoding
 
-# Represents the files within the torrent (i.e. the files to write to disk)
 TorrentFile = namedtuple('TorrentFile', ['name', 'length'])
 
 
-class Torrent:
-    """
-    Represent the torrent meta-data that is kept within a .torrent file. It is
-    basically just a wrapper around the bencoded data with utility functions.
-
-    This class does not contain any session state as part of the download.
-    """
+class Torrent:  # 解析种子文件
     def __init__(self, filename):
         self.filename = filename
         self.files = []
@@ -26,10 +18,6 @@ class Torrent:
             self.info_hash = sha1(info).digest()
             self._identify_files()
 
-    def _identify_files(self):
-        """
-        Identifies the files included in this torrent
-        """
         if self.multi_file:
             # TODO Add support for multi-file torrents
             raise RuntimeError('Multi-file torrents is not supported!')
@@ -40,44 +28,30 @@ class Torrent:
 
     @property
     def announce(self) -> str:
-        """
-        The announce URL to the tracker.
-        """
+
         return self.meta_info[b'announce'].decode('utf-8')
 
     @property
     def multi_file(self) -> bool:
-        """
-        Does this torrent contain multiple files?
-        """
+
         # If the info dict contains a files element then it is a multi-file
         return b'files' in self.meta_info[b'info']
 
     @property
     def piece_length(self) -> int:
-        """
-        Get the length in bytes for each piece
-        """
+
         return self.meta_info[b'info'][b'piece length']
 
     @property
     def total_size(self) -> int:
-        """
-        The total size (in bytes) for all the files in this torrent. For a
-        single file torrent this is the only file, for a multi-file torrent
-        this is the sum of all files.
 
-        :return: The total size (in bytes) for this torrent's data.
-        """
         if self.multi_file:
             raise RuntimeError('Multi-file torrents is not supported!')
         return self.files[0].length
 
     @property
     def pieces(self):
-        # The info pieces is a string representing all pieces SHA1 hashes
-        # (each 20 bytes long). Read that data and slice it up into the
-        # actual pieces
+
         data = self.meta_info[b'info'][b'pieces']
         pieces = []
         offset = 0
