@@ -10,7 +10,6 @@ import bencoding
 
 class TrackerResponse:
 
-
     def __init__(self, response: dict):
         self.response = response
 
@@ -47,8 +46,7 @@ class TrackerResponse:
         else:
             logging.debug('Binary model peers are returned by tracker')
 
-
-            peers = [peers[i:i+6] for i in range(0, len(peers), 6)]
+            peers = [peers[i:i + 6] for i in range(0, len(peers), 6)]
 
             # Convert the encoded address to a list of tuples
             return [(socket.inet_ntoa(p[:4]), _decode_port(p[4:]))
@@ -59,14 +57,13 @@ class TrackerResponse:
                "complete: {complete}\n" \
                "interval: {interval}\n" \
                "peers: {peers}\n".format(
-                   incomplete=self.incomplete,
-                   complete=self.complete,
-                   interval=self.interval,
-                   peers=", ".join([x for (x, _) in self.peers]))
+            incomplete=self.incomplete,
+            complete=self.complete,
+            interval=self.interval,
+            peers=", ".join([x for (x, _) in self.peers]))
 
 
 class Tracker:
-
 
     def __init__(self, torrent):
         self.torrent = torrent
@@ -130,12 +127,10 @@ class Tracker:
 
 
 def _calculate_peer_id():
-
     return '-PC0001-' + ''.join(
         [str(random.randint(0, 9)) for _ in range(12)])
 
 
 def _decode_port(port):
-
     # Convert from C style big-endian encoded as unsigned short
     return unpack(">H", port)[0]
