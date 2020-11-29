@@ -7,13 +7,11 @@ from asyncio import Queue
 from hashlib import sha1
 from tracker import Tracker
 from peer_protocol import PeersConnection, BLOCK_SIZE
-from collections import namedtuple, defaultdict
+from collections import defaultdict
 
 
 # 最大peer连接数
 MAX_CONNECTIONS_CNT = 30
-# 定义跟踪挂起请求的类
-BlockPending = namedtuple('BlockPending', ['block', 'added'])
 
 
 class Piece:
@@ -69,6 +67,13 @@ class Block:
         self.length = length
         self.status = Block.Missing
         self.data = None
+
+
+# 定义跟踪挂起请求的类
+class BlockPending:
+    def __init__(self, block, added):
+        self.block = block
+        self.added = added
 
 
 class PiecesManager:

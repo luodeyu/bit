@@ -39,7 +39,7 @@ class Tracker:
             data = await response.read()
             print(ben_decoder.Decoder(data).decode())
             self.raise_for_error(data)
-            return TrackerResponse(ben_decoder.Decoder(data).decode())
+            return TrackersResponse(ben_decoder.Decoder(data).decode())
 
     def close(self):
         self.http_client.close()
@@ -70,7 +70,7 @@ class Tracker:
             'compact': 1}
 
 
-class TrackerResponse:
+class TrackersResponse:
 
     def __init__(self, response: dict):
         self.response = response

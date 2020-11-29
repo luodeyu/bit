@@ -1,9 +1,5 @@
-from hashlib import sha1
-from collections import namedtuple
-
 import ben_decoder
-
-TorrentFile = namedtuple('TorrentFile', ['name', 'length'])
+from hashlib import sha1
 
 
 class Torrent:  # 解析种子文件
@@ -78,3 +74,10 @@ class Torrent:  # 解析种子文件
                                   self.meta_info[b'info'][b'length'],
                                   self.meta_info[b'announce'],
                                   self.info_hash)
+
+
+# Torrent文件的属性类
+class TorrentFile:
+    def __init__(self, name, length):
+        self.name = name
+        self.length = length
