@@ -45,6 +45,5 @@ def run_client():
     finally:
         loop.close()
 
-
 if __name__ == '__main__':
     run_client()

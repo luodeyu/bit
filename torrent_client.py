@@ -4,92 +4,16 @@ import math
 import os
 import time
 from asyncio import Queue
-from collections import namedtuple, defaultdict
 from hashlib import sha1
-
-from peer_protocol import PeerConnection, REQUEST_SIZE
 from tracker import Tracker
+from peer_protocol import PeersConnection, BLOCK_SIZE
+from collections import namedtuple, defaultdict
+
 
 # 最大peer连接数
-MAX_PEER_CONNECTIONS = 40
-
-
-class TorrentClient:
-    def __init__(self, torrent):
-        self.tracker = Tracker(torrent)
-        self.available_peers = Queue()
-        self.peers = []
-        self.piece_manager = PieceManager(torrent)
-        self.abort = False
-
-    async def start(self):
-        self.peers = [PeerConnection(self.available_peers,
-                                     self.tracker.torrent.info_hash,
-                                     self.tracker.peer_id,
-                                     self.piece_manager,
-                                     # 当从peer成功接收一个block，PeerConnection会使用这个
-                                     self._on_block_retrieved)
-                      for _ in range(MAX_PEER_CONNECTIONS)]
-
-        previous = None
-        interval = 30*60
-
-        while True:  # 主循环，检查PieceManager状态以继续执行
-            if self.piece_manager.complete:
-                logging.info('Torrent downloaded successfully.')
-                break
-            if self.abort:
-                logging.info('Download has been aborted.')
-                break
-
-            current = time.time()
-             # 每经历一个interval连接一次tracker
-            if (not previous) or (previous + interval < current): 
-                response = await self.tracker.connect(
-                    first=previous if previous else False,
-                    uploaded=self.piece_manager.bytes_uploaded,
-                    downloaded=self.piece_manager.bytes_downloaded)
-
-                if response:
-                    previous = current
-                    interval = response.interval # 从response更新interval
-                    self._empty_queue()  # 清空available_peers队列
-                    # 每连接一次tracker，更新available_peers队列
-                    for peer in response.peers: 
-                        self.available_peers.put_nowait(peer)
-            else:
-                await asyncio.sleep(5)
-        self.stop()
-
-    def _empty_queue(self):
-        while not self.available_peers.empty():  # 队列不空时进入循环
-            self.available_peers.get_nowait()
-
-    def stop(self):
-
-        self.abort = True
-        for peer in self.peers:
-            peer.stop()
-        self.piece_manager.close()
-        self.tracker.close()
-
-    def _on_block_retrieved(self, peer_id, piece_index, block_offset, data):
-        self.piece_manager.block_received(
-            peer_id=peer_id, piece_index=piece_index,
-            block_offset=block_offset, data=data)
-
-
-class Block:
-    Missing = 0
-    Pending = 1
-    Retrieved = 2
-
-    def __init__(self, piece: int, offset: int, length: int):
-        self.piece = piece
-        self.offset = offset
-        self.length = length
-        self.status = Block.Missing
-        self.data = None
+MAX_CONNECTIONS_CNT = 30
+# 定义跟踪挂起请求的类
+BlockPending = namedtuple('BlockPending', ['block', 'added'])
 
 
 class Piece:
@@ -102,7 +26,7 @@ class Piece:
         for block in self.blocks:
             block.status = Block.Missing
 
-    def next_request(self) -> Block:
+    def next_request(self):
         missing = [b for b in self.blocks if b.status is Block.Missing]
         if missing:
             missing[0].status = Block.Pending
@@ -133,20 +57,30 @@ class Piece:
         blocks_data = [b.data for b in retrieved]
         return b''.join(blocks_data)
 
-# The type used for keeping track of pending request that can be re-issued
-PendingRequest = namedtuple('PendingRequest', ['block', 'added'])
+
+class Block:
+    Missing = 0
+    Pending = 1
+    Retrieved = 2
+
+    def __init__(self, piece: int, offset: int, length: int):
+        self.piece = piece
+        self.offset = offset
+        self.length = length
+        self.status = Block.Missing
+        self.data = None
 
 
-class PieceManager:
+class PiecesManager:
 
     def __init__(self, torrent):
         self.torrent = torrent
         self.peers = {}
-        self.pending_blocks = [] #等待
+        self.pending_blocks = []   # 等待
         self.missing_pieces = []
         self.ongoing_pieces = []
         self.have_pieces = []
-        self.max_pending_time = 300 * 1000  # 最大挂起时间为5分钟
+        self.max_pending_time = 600 * 1000  # 最大挂起时间为10分钟
         self.missing_pieces = self._initiate_pieces()
         self.total_pieces = len(torrent.pieces)
         self.fd = os.open(self.torrent.output_file,  os.O_RDWR | os.O_CREAT)
@@ -157,21 +91,21 @@ class PieceManager:
         torrent = self.torrent
         pieces = []
         total_pieces = len(torrent.pieces)
-        std_piece_blocks = math.ceil(torrent.piece_length / REQUEST_SIZE) # （标准）每个piece中block的个数
+        std_piece_blocks = math.ceil(torrent.piece_length / BLOCK_SIZE) # （标准）每个piece中block的个数
 
         for index, hash_value in enumerate(torrent.pieces):
             if index < (total_pieces - 1):
-                blocks = [Block(index, offset * REQUEST_SIZE, REQUEST_SIZE)
+                blocks = [Block(index, offset * BLOCK_SIZE, BLOCK_SIZE)
                           for offset in range(std_piece_blocks)]
             else:
                 last_length = torrent.total_size % torrent.piece_length
-                num_blocks = math.ceil(last_length / REQUEST_SIZE)
-                blocks = [Block(index, offset * REQUEST_SIZE, REQUEST_SIZE)
+                num_blocks = math.ceil(last_length / BLOCK_SIZE)
+                blocks = [Block(index, offset * BLOCK_SIZE, BLOCK_SIZE)
                           for offset in range(num_blocks)]
 
-                if last_length % REQUEST_SIZE > 0:
+                if last_length % BLOCK_SIZE > 0:
                     last_block = blocks[-1]
-                    last_block.length = last_length % REQUEST_SIZE
+                    last_block.length = last_length % BLOCK_SIZE
                     blocks[-1] = last_block
             pieces.append(Piece(index, blocks, hash_value))
         return pieces
@@ -269,7 +203,7 @@ class PieceManager:
                 block = piece.next_request()
                 if block:
                     self.pending_blocks.append(
-                        PendingRequest(block, int(round(time.time() * 1000))))
+                        BlockPending(block, int(round(time.time() * 1000))))
                     return block
         return None
 
@@ -299,3 +233,68 @@ class PieceManager:
         pos = piece.index * self.torrent.piece_length
         os.lseek(self.fd, pos, os.SEEK_SET)
         os.write(self.fd, piece.data)
+
+
+class TorrentClient:
+    def __init__(self, torrent):
+        self.tracker = Tracker(torrent)
+        self.available_peers = Queue()
+        self.peers = []
+        self.piece_manager = PiecesManager(torrent)
+        self.abort = False
+
+    async def start(self):
+        self.peers = [PeersConnection(self.available_peers,
+                                      self.tracker.torrent.info_hash,
+                                      self.tracker.peer_id,
+                                      self.piece_manager,
+                                      # 当从peer成功接收一个block，PeersConnection会使用这个
+                                      self._on_block_retrieved)
+                      for _ in range(MAX_CONNECTIONS_CNT)]
+
+        previous = None
+        interval = 30*60
+
+        while True:  # 主循环，检查PiecesManager状态以继续执行
+            if self.piece_manager.complete:
+                logging.info('Torrent downloaded successfully.')
+                break
+            if self.abort:
+                logging.info('Download has been aborted.')
+                break
+
+            current = time.time()
+             # 每经历一个interval连接一次tracker
+            if (not previous) or (previous + interval < current): 
+                response = await self.tracker.connect(
+                    first=previous if previous else False,
+                    uploaded=self.piece_manager.bytes_uploaded,
+                    downloaded=self.piece_manager.bytes_downloaded)
+
+                if response:
+                    previous = current
+                    interval = response.interval  # 从response更新interval
+                    self._empty_queue()  # 清空available_peers队列
+                    # 每连接一次tracker，更新available_peers队列
+                    for peer in response.peers: 
+                        self.available_peers.put_nowait(peer)
+            else:
+                await asyncio.sleep(5)
+        self.stop()
+
+    def _empty_queue(self):
+        while not self.available_peers.empty():  # 队列不空时进入循环
+            self.available_peers.get_nowait()
+
+    def stop(self):
+
+        self.abort = True
+        for peer in self.peers:
+            peer.stop()
+        self.piece_manager.close()
+        self.tracker.close()
+
+    def _on_block_retrieved(self, peer_id, piece_index, block_offset, data):
+        self.piece_manager.block_received(
+            peer_id=peer_id, piece_index=piece_index,
+            block_offset=block_offset, data=data)

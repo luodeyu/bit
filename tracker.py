@@ -2,65 +2,9 @@ import aiohttp
 import random
 import logging
 import socket
+import ben_decoder
 from struct import unpack
 from urllib.parse import urlencode
-
-import ben_decoder
-
-
-class TrackerResponse:
-
-    def __init__(self, response: dict):
-        self.response = response
-
-    @property
-    def failure(self):
-
-        if b'failure reason' in self.response:
-            return self.response[b'failure reason'].decode('utf-8')
-        return None
-
-    @property
-    def interval(self) -> int:
-
-        return self.response.get(b'interval', 0)
-
-    @property
-    def complete(self) -> int:
-
-        return self.response.get(b'complete', 0)
-
-    @property
-    def incomplete(self) -> int:
-
-        return self.response.get(b'incomplete', 0)
-
-    @property
-    def peers(self):
-
-        peers = self.response[b'peers']
-        if type(peers) == list:
-            # TODO Implement support for dictionary peer list
-            logging.debug('Dictionary model peers are returned by tracker')
-            raise NotImplementedError()
-        else:
-            logging.debug('Binary model peers are returned by tracker')
-
-            peers = [peers[i:i + 6] for i in range(0, len(peers), 6)]
-
-            # Convert the encoded address to a list of tuples
-            return [(socket.inet_ntoa(p[:4]), _decode_port(p[4:]))
-                    for p in peers]
-
-    def __str__(self):
-        return "incomplete: {incomplete}\n" \
-               "complete: {complete}\n" \
-               "interval: {interval}\n" \
-               "peers: {peers}\n".format(
-            incomplete=self.incomplete,
-            complete=self.complete,
-            interval=self.interval,
-            peers=", ".join([x for (x, _) in self.peers]))
 
 
 class Tracker:
@@ -124,6 +68,61 @@ class Tracker:
             'downloaded': 0,
             'left': 0,
             'compact': 1}
+
+
+class TrackerResponse:
+
+    def __init__(self, response: dict):
+        self.response = response
+
+    @property
+    def failure(self):
+
+        if b'failure reason' in self.response:
+            return self.response[b'failure reason'].decode('utf-8')
+        return None
+
+    @property
+    def interval(self) -> int:
+
+        return self.response.get(b'interval', 0)
+
+    @property
+    def complete(self) -> int:
+
+        return self.response.get(b'complete', 0)
+
+    @property
+    def incomplete(self) -> int:
+
+        return self.response.get(b'incomplete', 0)
+
+    @property
+    def peers(self):
+
+        peers = self.response[b'peers']
+        if type(peers) == list:
+            # TODO Implement support for dictionary peer list
+            logging.debug('Dictionary model peers are returned by tracker')
+            raise NotImplementedError()
+        else:
+            logging.debug('Binary model peers are returned by tracker')
+
+            peers = [peers[i:i + 6] for i in range(0, len(peers), 6)]
+
+            # Convert the encoded address to a list of tuples
+            return [(socket.inet_ntoa(p[:4]), _decode_port(p[4:]))
+                    for p in peers]
+
+    def __str__(self):
+        return "incomplete: {incomplete}\n" \
+               "complete: {complete}\n" \
+               "interval: {interval}\n" \
+               "peers: {peers}\n".format(
+            incomplete=self.incomplete,
+            complete=self.complete,
+            interval=self.interval,
+            peers=", ".join([x for (x, _) in self.peers]))
 
 
 def _calculate_peer_id():
