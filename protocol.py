@@ -10,10 +10,6 @@ import bitstring
 REQUEST_SIZE = 2**14
 
 
-class ProtocolError(BaseException):
-    pass
-
-
 class PeerConnection:
     def __init__(self, queue: Queue, info_hash,
                  peer_id, piece_manager, on_block_cb=None):
@@ -478,3 +474,8 @@ class Cancel(PeerMessage):
 
     def __str__(self):
         return 'Cancel'
+
+
+class ProtocolError(BaseException):
+    """协议交互出现错误时抛出该异常"""
+

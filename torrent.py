@@ -18,6 +18,10 @@ class Torrent:  # 解析种子文件
             self.info_hash = sha1(info).digest()
             self._identify_files()
 
+    def _identify_files(self):
+        """
+        Identifies the files included in this torrent
+        """
         if self.multi_file:
             # TODO Add support for multi-file torrents
             raise RuntimeError('Multi-file torrents is not supported!')

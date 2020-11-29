@@ -27,13 +27,14 @@ class TorrentClient:
                                      self.tracker.torrent.info_hash,
                                      self.tracker.peer_id,
                                      self.piece_manager,
+                                     # 当从peer成功接收一个block，PeerConnection会使用这个
                                      self._on_block_retrieved)
                       for _ in range(MAX_PEER_CONNECTIONS)]
 
         previous = None
         interval = 30*60
 
-        while True:
+        while True:  # 主循环，检查PieceManager状态以继续执行
             if self.piece_manager.complete:
                 logging.info('Torrent fully downloaded!')
                 break
@@ -42,7 +43,8 @@ class TorrentClient:
                 break
 
             current = time.time()
-            if (not previous) or (previous + interval < current):  # 该联系tracker啦
+             # 每经历一个interval连接一次tracker
+            if (not previous) or (previous + interval < current): 
                 response = await self.tracker.connect(
                     first=previous if previous else False,
                     uploaded=self.piece_manager.bytes_uploaded,
@@ -50,16 +52,17 @@ class TorrentClient:
 
                 if response:
                     previous = current
-                    interval = response.interval
+                    interval = response.interval # 从response更新interval
                     self._empty_queue()  # 清空available_peers队列
-                    for peer in response.peers:  # 更新available_peers队列
+                    # 每连接一次tracker，更新available_peers队列
+                    for peer in response.peers: 
                         self.available_peers.put_nowait(peer)
             else:
                 await asyncio.sleep(5)
         self.stop()
 
     def _empty_queue(self):
-        while not self.available_peers.empty():
+        while not self.available_peers.empty():  # 队列不空时进入循环
             self.available_peers.get_nowait()
 
     def stop(self):
@@ -143,12 +146,14 @@ class PieceManager:
         self.missing_pieces = []
         self.ongoing_pieces = []
         self.have_pieces = []
-        self.max_pending_time = 300 * 1000  # 5 minutes
+        self.max_pending_time = 300 * 1000  # 最大挂起时间为5分钟
         self.missing_pieces = self._initiate_pieces()
         self.total_pieces = len(torrent.pieces)
         self.fd = os.open(self.torrent.output_file,  os.O_RDWR | os.O_CREAT)
 
     def _initiate_pieces(self) -> [Piece]:
+        # 将pieces分成block块，因为block更小，利于传输。
+        # 由于最后一个piece的block数以及的最后一个block大小与之前的不同，需要做特殊处理，因此偏移量需要特殊计算。
         torrent = self.torrent
         pieces = []
         total_pieces = len(torrent.pieces)
@@ -185,7 +190,6 @@ class PieceManager:
 
     @property
     def bytes_uploaded(self) -> int:
-        # TODO Add support for sending data
         return 0
 
     def add_peer(self, peer_id, bitfield):
@@ -255,7 +259,6 @@ class PieceManager:
                                  'piece {piece}'.format(
                                     block=request.block.offset,
                                     piece=request.block.piece))
-                    # Reset expiration timer
                     request.added = current
                     return request.block
         return None
@@ -263,7 +266,6 @@ class PieceManager:
     def _next_ongoing(self, peer_id) -> Block:
         for piece in self.ongoing_pieces:
             if self.peers[peer_id][piece.index]:
-                # Is there any blocks left to request in this piece?
                 block = piece.next_request()
                 if block:
                     self.pending_blocks.append(
@@ -288,11 +290,8 @@ class PieceManager:
     def _next_missing(self, peer_id) -> Block:
         for index, piece in enumerate(self.missing_pieces):
             if self.peers[peer_id][piece.index]:
-                # Move this piece from missing to ongoing
                 piece = self.missing_pieces.pop(index)
                 self.ongoing_pieces.append(piece)
-                # The missing pieces does not have any previously requested
-                # blocks (then it is ongoing).
                 return piece.next_request()
         return None
 

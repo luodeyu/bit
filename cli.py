@@ -12,8 +12,8 @@ from client import TorrentClient
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('torrent',help='the .torrent file')
-    parser.add_argument('-v', '--verbose', action='store_true',help='display more infomation')
+    parser.add_argument('torrent', help='.torrent file')
+    parser.add_argument('-v', '--verbose', action='store_true', help='display more infomation')
     args = parser.parse_args()
     print(args)
     if args.verbose:
