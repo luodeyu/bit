@@ -14,6 +14,25 @@ from collections import defaultdict
 MAX_CONNECTIONS_CNT = 30
 
 
+class Block:
+    Missing = 0
+    Pending = 1
+    Retrieved = 2
+
+    def __init__(self, piece: int, offset: int, length: int):
+        self.piece = piece
+        self.offset = offset
+        self.length = length
+        self.status = Block.Missing
+        self.data = None
+
+
+class BlockPending:
+    def __init__(self, block, added):
+        self.block = block
+        self.added = added
+
+
 class Piece:
     def __init__(self, index: int, blocks: [], hash_value):
         self.index = index
@@ -54,26 +73,6 @@ class Piece:
         retrieved = sorted(self.blocks, key=lambda b: b.offset)
         blocks_data = [b.data for b in retrieved]
         return b''.join(blocks_data)
-
-
-class Block:
-    Missing = 0
-    Pending = 1
-    Retrieved = 2
-
-    def __init__(self, piece: int, offset: int, length: int):
-        self.piece = piece
-        self.offset = offset
-        self.length = length
-        self.status = Block.Missing
-        self.data = None
-
-
-# 定义跟踪挂起请求的类
-class BlockPending:
-    def __init__(self, block, added):
-        self.block = block
-        self.added = added
 
 
 class PiecesManager:
@@ -269,7 +268,7 @@ class TorrentClient:
                 break
 
             current = time.time()
-             # 每经历一个interval连接一次tracker
+            # 每经历一个interval连接一次tracker
             if (not previous) or (previous + interval < current): 
                 response = await self.tracker.connect(
                     first=previous if previous else False,
