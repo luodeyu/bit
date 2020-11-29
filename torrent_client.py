@@ -7,7 +7,7 @@ from asyncio import Queue
 from collections import namedtuple, defaultdict
 from hashlib import sha1
 
-from protocol import PeerConnection, REQUEST_SIZE
+from peer_protocol import PeerConnection, REQUEST_SIZE
 from tracker import Tracker
 
 # 最大peer连接数
@@ -36,10 +36,10 @@ class TorrentClient:
 
         while True:  # 主循环，检查PieceManager状态以继续执行
             if self.piece_manager.complete:
-                logging.info('Torrent fully downloaded!')
+                logging.info('Torrent downloaded successfully.')
                 break
             if self.abort:
-                logging.info('Aborting download...')
+                logging.info('Download has been aborted.')
                 break
 
             current = time.time()

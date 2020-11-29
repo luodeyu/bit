@@ -5,7 +5,7 @@ import socket
 from struct import unpack
 from urllib.parse import urlencode
 
-import bencoding
+import ben_decoder
 
 
 class TrackerResponse:
@@ -93,9 +93,9 @@ class Tracker:
             if not response.status == 200:
                 raise ConnectionError('Unable to connect to tracker: status code {}'.format(response.status))
             data = await response.read()
-            print(bencoding.Decoder(data).decode())
+            print(ben_decoder.Decoder(data).decode())
             self.raise_for_error(data)
-            return TrackerResponse(bencoding.Decoder(data).decode())
+            return TrackerResponse(ben_decoder.Decoder(data).decode())
 
     def close(self):
         self.http_client.close()
