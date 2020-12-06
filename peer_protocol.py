@@ -6,6 +6,14 @@ from concurrent.futures import CancelledError
 import bitstring
 
 
+"""
+该文件：
+1）主要定义了与peer交互的数据格式，
+通过继承Message基类，完成多种不同的消息格式
+2）建立与Peer之间的连接，并交互数据
+"""
+
+
 BLOCK_SIZE = 2**14
 
 

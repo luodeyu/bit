@@ -19,7 +19,6 @@ class Torrent:  # 解析种子文件
         Identifies the files included in this torrent
         """
         if self.multi_file:
-            # TODO Add support for multi-file torrents
             raise RuntimeError('Multi-file torrents is not supported!')
         self.files.append(
             TorrentFile(
@@ -33,8 +32,6 @@ class Torrent:  # 解析种子文件
 
     @property
     def multi_file(self) -> bool:
-
-        # If the info dict contains a files element then it is a multi-file
         return b'files' in self.meta_info[b'info']
 
     @property

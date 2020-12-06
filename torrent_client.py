@@ -10,6 +10,11 @@ from peer_protocol import PeersConnection, BLOCK_SIZE
 from collections import defaultdict
 
 
+"""
+该文件用于建立torrent的客户端，并对管理从
+peer端获取的pieces
+"""
+
 # 最大peer连接数
 MAX_CONNECTIONS_CNT = 30
 

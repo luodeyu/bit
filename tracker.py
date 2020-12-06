@@ -7,6 +7,14 @@ from struct import unpack
 from urllib.parse import urlencode
 
 
+"""
+该文件主要包含Tracker类
+主要作用：建立与Tracker服务器的连接，
+获取peer信息等
+
+"""
+
+
 class Tracker:
 
     def __init__(self, torrent):
@@ -47,13 +55,10 @@ class Tracker:
     def raise_for_error(self, tracker_response):
 
         try:
-            # a tracker response containing an error will have a utf-8 message only.
-            # see: https://wiki.theory.org/index.php/BitTorrentSpecification#Tracker_Response
             message = tracker_response.decode("utf-8")
             if "failure" in message:
                 raise ConnectionError('Unable to connect to tracker: {}'.format(message))
 
-        # a successful tracker response will have non-uncicode data, so it's a safe to bet ignore this exception.
         except UnicodeDecodeError:
             pass
 
@@ -63,7 +68,6 @@ class Tracker:
             'info_hash': self.torrent.info_hash,
             'peer_id': self.peer_id,
             'port': 6889,
-            # TODO Update stats when communicating with tracker
             'uploaded': 0,
             'downloaded': 0,
             'left': 0,
@@ -102,7 +106,6 @@ class TrackersResponse:
 
         peers = self.response[b'peers']
         if type(peers) == list:
-            # TODO Implement support for dictionary peer list
             logging.debug('Dictionary model peers are returned by tracker')
             raise NotImplementedError()
         else:
@@ -110,7 +113,6 @@ class TrackersResponse:
 
             peers = [peers[i:i + 6] for i in range(0, len(peers), 6)]
 
-            # Convert the encoded address to a list of tuples
             return [(socket.inet_ntoa(p[:4]), _decode_port(p[4:]))
                     for p in peers]
 
@@ -131,5 +133,4 @@ def _calculate_peer_id():
 
 
 def _decode_port(port):
-    # Convert from C style big-endian encoded as unsigned short
     return unpack(">H", port)[0]
